@@ -6,19 +6,15 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Badge } from "@/components/ui/badge"
-import { Brain, Send, Home, Search, User, FileText, Microscope, Lock, LogOut, Zap, Menu } from "lucide-react"
+import { Brain, Home, Search, User, FileText, Microscope, LogOut, Zap, Menu } from "lucide-react"
 import { ParticlesBackground } from "@/components/particles-background"
-import { AuthModal } from "@/components/auth-modal"
 import { ChatSidebar } from "@/components/chat-sidebar"
 import { useAuth } from "@/components/auth-provider"
 import { useToast } from "@/hooks/use-toast"
-import { ContextMenu } from "@/components/context-menu"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
-import { KeyboardShortcutsHelp } from "@/components/keyboard-shortcuts-help"
 
 interface ResearchMessage {
   id: string
@@ -70,6 +66,22 @@ export default function ResearchPage() {
       scrollAreaRef.current.scrollTop = scrollAreaRef.current.scrollHeight
     }
   }, [messages])
+
+  // Check for pending message from dashboard
+  useEffect(() => {
+    const pendingMessage = sessionStorage.getItem("pendingMessage")
+    if (pendingMessage) {
+      setInput(pendingMessage)
+      sessionStorage.removeItem("pendingMessage")
+      
+      // Auto-send the message after a short delay
+      setTimeout(() => {
+        if (pendingMessage.trim()) {
+          handleSubmitWithMessage(pendingMessage)
+        }
+      }, 500)
+    }
+  }, [])
 
   // Load research messages for selected chat
   const loadChatMessages = (chatId: string) => {
@@ -164,9 +176,8 @@ export default function ResearchPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
+  const handleSubmitWithMessage = async (messageText: string) => {
+    if (!messageText.trim() || isLoading) return
 
     if (!canSendMessage) {
       toast({
@@ -181,7 +192,7 @@ export default function ResearchPage() {
     const userMessage: ResearchMessage = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: messageText,
       timestamp: new Date(),
     }
 
@@ -252,6 +263,11 @@ export default function ResearchPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleSubmitWithMessage(input)
   }
 
   // Initialize default research on first load
@@ -508,130 +524,4 @@ export default function ResearchPage() {
                                 </Badge>
                               </motion.div>
                             )}
-                            <p className="whitespace-pre-wrap leading-relaxed text-sm lg:text-base break-words word-wrap">
-                              {message.content}
-                            </p>
-                            <p
-                              className={`text-xs mt-3 ${message.role === "user" ? "text-blue-200" : "text-white/50"}`}
-                            >
-                              {message.timestamp.toLocaleTimeString()}
-                            </p>
-                          </motion.div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-
-                  {isLoading && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex justify-start w-full"
-                    >
-                      <div className="flex items-start space-x-4 max-w-[90%]">
-                        <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center">
-                          <Brain className="h-6 w-6 text-white" />
-                        </div>
-                        <div className="glass-morphism-dark border border-white/10 rounded-2xl p-5">
-                          <div className="flex items-center space-x-2 mb-3">
-                            <FileText className="h-4 w-4 text-blue-400" />
-                            <Badge variant="outline" className="text-xs border-blue-500/30 text-blue-300">
-                              Analyzing...
-                            </Badge>
-                          </div>
-                          <div className="flex space-x-2">
-                            {[0, 1, 2].map((i) => (
-                              <motion.div
-                                key={i}
-                                className="w-3 h-3 bg-blue-400 rounded-full"
-                                animate={{ scale: [1, 1.5, 1], opacity: [0.5, 1, 0.5] }}
-                                transition={{
-                                  duration: 1.5,
-                                  repeat: Number.POSITIVE_INFINITY,
-                                  delay: i * 0.3,
-                                }}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </motion.div>
-                  )}
-                </div>
-              </ScrollArea>
-
-              <div className="border-t border-white/10 p-4 lg:p-6 glass-morphism-dark flex-shrink-0">
-                {!canSendMessage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 p-4 rounded-lg bg-red-600/20 border border-red-500/30 text-red-300 text-sm flex items-center"
-                  >
-                    <Lock className="h-4 w-4 mr-2" />
-                    You've reached the 10 research query limit. Sign up for unlimited research access!
-                  </motion.div>
-                )}
-
-                <form onSubmit={handleSubmit} className="flex space-x-3">
-                  <div className="flex-1 relative">
-                    <Input
-                      ref={inputRef}
-                      value={input}
-                      onChange={(e) => setInput(e.target.value)}
-                      placeholder={
-                        canSendMessage
-                          ? "Enter your research question or topic..."
-                          : "Sign up to continue researching..."
-                      }
-                      disabled={isLoading || !canSendMessage}
-                      className="bg-white/5 border-white/20 text-white placeholder:text-white/50 pr-12 h-12 lg:h-14 rounded-xl text-sm lg:text-base"
-                    />
-                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/30 text-xs">
-                      {input.length}/2000
-                    </div>
-                  </div>
-
-                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                    <Button
-                      type="submit"
-                      disabled={isLoading || !canSendMessage || !input.trim()}
-                      className="h-12 lg:h-14 px-4 lg:px-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50"
-                    >
-                      <Send className="h-4 w-4 lg:h-5 lg:w-5" />
-                    </Button>
-                  </motion.div>
-                </form>
-
-                <div className="flex justify-between items-center mt-4 text-xs text-white/50">
-                  <span className="hidden sm:inline">Advanced AI research capabilities with detailed analysis</span>
-                  <span className="sm:hidden">Advanced AI research</span>
-                  {user ? (
-                    <span className="text-green-400">✓ Unlimited research queries</span>
-                  ) : (
-                    <span>{10 - researchMessageCount} research queries remaining</span>
-                  )}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Context Menu */}
-      <ContextMenu
-        x={contextMenu.x}
-        y={contextMenu.y}
-        isOpen={contextMenu.isOpen}
-        onClose={closeContextMenu}
-        onDelete={handleDeleteMessage}
-        onCopy={handleCopyMessage}
-        type="message"
-      />
-
-      {/* Keyboard Shortcuts Help */}
-      <KeyboardShortcutsHelp isOpen={showKeyboardHelp} onClose={() => setShowKeyboardHelp(false)} />
-
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
-    </div>
-  )
-}
+                            <p className="whitespace-pre-wrap leading-relaxed text-sm lg:text-base break-words\

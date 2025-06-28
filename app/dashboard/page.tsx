@@ -41,6 +41,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ContextMenu } from "@/components/context-menu"
 import { useKeyboardShortcuts } from "@/hooks/use-keyboard-shortcuts"
 import { KeyboardShortcutsHelp } from "@/components/keyboard-shortcuts-help"
+import { useRouter } from "next/navigation"
 
 interface ChatSession {
   id: string
@@ -71,7 +72,7 @@ export default function DashboardPage() {
   const [imageCount, setImageCount] = useState(0)
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const mainInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter()
   const [contextMenu, setContextMenu] = useState<{
     x: number
     y: number
@@ -92,7 +93,6 @@ export default function DashboardPage() {
   const { user, signOut, chatMessageCount, researchMessageCount, incrementChatCount, incrementResearchCount } =
     useAuth()
   const { toast } = useToast()
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([])
 
   // Load recent chats from all types
   useEffect(() => {
@@ -171,205 +171,46 @@ export default function DashboardPage() {
   const saveChatSessions = (type: string, sessions: ChatSession[]) => {
     const storageKey = `${type}_sessions_${user?.id || "guest"}`
     localStorage.setItem(storageKey, JSON.stringify(sessions))
-    setChatSessions(sessions)
   }
 
-  // Handle mode selection with auto-send
-  const handleModeSelect = (mode: "chat" | "research" | "image", autoSendMessage?: string) => {
-    setActiveMode(mode)
-    setCurrentChatId(null)
-    setMessages([])
-
-    // Set welcome message
-    const welcomeMessages = {
-      chat: "Hello! I'm your daily chat assistant powered by advanced AI. I'm here to help with everyday questions, casual conversations, and quick tasks. What would you like to talk about?",
-      research:
-        "Welcome to Research Mode! I'm your advanced AI research assistant, specialized in providing comprehensive analysis, in-depth research, and detailed explanations. What would you like to research today?",
-      image:
-        "Welcome to Lumios Image Gen! I'm your AI-powered image generation assistant using Qwen-2.5-VL-3B-Instruct. Describe what you'd like to see and I'll bring it to life!",
-    }
-
-    const initialMessages = [
-      {
-        id: "1",
-        role: "assistant" as const,
-        content: welcomeMessages[mode],
-        timestamp: new Date(),
-      },
-    ]
-
-    setMessages(initialMessages)
-
-    // Auto-send message if provided
-    if (autoSendMessage && autoSendMessage.trim()) {
-      setTimeout(() => {
-        handleAutoSubmit(autoSendMessage, mode, initialMessages)
-      }, 100)
-    }
-  }
-
-  // Handle auto-submit from dashboard
-  const handleAutoSubmit = async (
-    messageText: string,
-    mode: "chat" | "research" | "image",
-    currentMessages: Message[],
-  ) => {
-    // Check limits for non-authenticated users
-    if (!user) {
-      if (mode === "chat" && chatMessageCount >= 10) {
-        toast({
-          title: "Message limit reached",
-          description: "Sign up for unlimited messages!",
-          variant: "destructive",
-        })
-        return
+  // Handle mode selection and auto-send message
+  const handleModeSelect = (mode: "chat" | "research" | "image") => {
+    if (input.trim()) {
+      // If there's input, navigate to the specific page and send the message
+      const routes = {
+        chat: "/chat",
+        research: "/research",
+        image: "/image",
       }
-      if (mode === "research" && researchMessageCount >= 10) {
-        toast({
-          title: "Research limit reached",
-          description: "Sign up for unlimited research!",
-          variant: "destructive",
-        })
-        return
+
+      // Store the message to be sent
+      sessionStorage.setItem("pendingMessage", input)
+
+      // Navigate to the specific page
+      router.push(routes[mode])
+    } else {
+      // If no input, just set the mode
+      setActiveMode(mode)
+      setCurrentChatId(null)
+      setMessages([])
+
+      // Set welcome message
+      const welcomeMessages = {
+        chat: "Hello! I'm your daily chat assistant powered by advanced AI. I'm here to help with everyday questions, casual conversations, and quick tasks. What would you like to talk about?",
+        research:
+          "Welcome to Research Mode! I'm your advanced AI research assistant, specialized in providing comprehensive analysis, in-depth research, and detailed explanations. What would you like to research today?",
+        image:
+          "Welcome to Lumios Image Gen! I'm your AI-powered image generation assistant using Qwen-2.5-VL-3B-Instruct. Describe what you'd like to see and I'll bring it to life!",
       }
-      if (mode === "image" && imageCount >= 5) {
-        toast({
-          title: "Image limit reached",
-          description: "Sign up for 100 images per day!",
-          variant: "destructive",
-        })
-        return
-      }
-    }
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      role: "user",
-      content: messageText,
-      timestamp: new Date(),
-    }
-
-    const newMessages = [...currentMessages, userMessage]
-    setMessages(newMessages)
-    setIsLoading(true)
-
-    // Increment counters for non-authenticated users
-    if (!user) {
-      if (mode === "chat") incrementChatCount()
-      if (mode === "research") incrementResearchCount()
-      if (mode === "image") {
-        const today = new Date().toDateString()
-        const storageKey = `image_count_${user?.id || "guest"}_${today}`
-        const newCount = imageCount + 1
-        setImageCount(newCount)
-        localStorage.setItem(storageKey, newCount.toString())
-      }
-    }
-
-    // Create new chat session
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      title: messageText.slice(0, 50) + (messageText.length > 50 ? "..." : ""),
-      lastMessage: "",
-      timestamp: new Date(),
-      messageCount: 0,
-      type: mode,
-    }
-
-    const chatId = newSession.id
-    setCurrentChatId(chatId)
-
-    // Save new session
-    const storageKey = `${mode}_sessions_${user?.id || "guest"}`
-    const existing = localStorage.getItem(storageKey)
-    const existingSessions = existing ? JSON.parse(existing) : []
-    const updatedSessions = [newSession, ...existingSessions]
-    saveChatSessions(mode, updatedSessions)
-    setRecentChats((prev) => [newSession, ...prev].slice(0, 15))
-
-    try {
-      let response, data
-
-      if (mode === "image") {
-        response = await fetch("/api/image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: messageText }),
-        })
-        data = await response.json()
-
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
+      setMessages([
+        {
+          id: "1",
           role: "assistant",
-          content: `I've generated an image based on your prompt: "${messageText}"`,
-          imageUrl: data.imageUrl,
+          content: welcomeMessages[mode],
           timestamp: new Date(),
-        }
-
-        const finalMessages = [...newMessages, assistantMessage]
-        setMessages(finalMessages)
-        saveChatMessages(chatId, mode, finalMessages)
-      } else {
-        const apiEndpoint = mode === "chat" ? "/api/chat" : "/api/research"
-        response = await fetch(apiEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            messages: newMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          }),
-        })
-        data = await response.json()
-
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content: data.content,
-          timestamp: new Date(),
-          type: mode === "research" ? "analysis" : undefined,
-        }
-
-        const finalMessages = [...newMessages, assistantMessage]
-        setMessages(finalMessages)
-        saveChatMessages(chatId, mode, finalMessages)
-      }
-
-      // Update chat session
-      const updatedSessions = existingSessions.map((session: ChatSession) => {
-        if (session.id === chatId) {
-          return {
-            ...session,
-            lastMessage: data.content || "Generated image",
-            timestamp: new Date(),
-            messageCount: session.messageCount + 1,
-          }
-        }
-        return session
-      })
-
-      saveChatSessions(mode, updatedSessions)
-      setRecentChats((prev) =>
-        prev.map((chat) =>
-          chat.id === chatId
-            ? { ...chat, lastMessage: data.content || "Generated image", timestamp: new Date() }
-            : chat,
-        ),
-      )
-    } catch (error) {
-      console.error("Error:", error)
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: "I apologize, but I encountered an error. Please try again.",
-        timestamp: new Date(),
-      }
-      const finalMessages = [...newMessages, errorMessage]
-      setMessages(finalMessages)
-      saveChatMessages(chatId, mode, finalMessages)
-    } finally {
-      setIsLoading(false)
+        },
+      ])
     }
   }
 
@@ -424,17 +265,7 @@ export default function DashboardPage() {
     ])
   }
 
-  // Handle main input submission from dashboard
-  const handleMainInputSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim()) return
-
-    // Default to chat mode and auto-send the message
-    handleModeSelect("chat", input)
-    setInput("")
-  }
-
-  // Handle message submission in active chat
+  // Handle message submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading || !activeMode) return
@@ -753,16 +584,12 @@ export default function DashboardPage() {
       setShowKeyboardHelp(false)
       closeContextMenu()
     },
-    onSend: activeMode ? handleSubmit : handleMainInputSubmit,
+    onSend: handleSubmit,
     onFocusInput: () => {
-      if (activeMode) {
-        const inputElement = document.querySelector(
-          'input[placeholder*="Ask anything"], input[placeholder*="Type your message"], input[placeholder*="research"], input[placeholder*="image"]',
-        ) as HTMLInputElement
-        inputElement?.focus()
-      } else {
-        mainInputRef.current?.focus()
-      }
+      const inputElement = document.querySelector(
+        'input[placeholder*="Ask anything"], input[placeholder*="Type your message"], input[placeholder*="research"], input[placeholder*="image"]',
+      ) as HTMLInputElement
+      inputElement?.focus()
     },
   })
 
@@ -1136,10 +963,17 @@ export default function DashboardPage() {
                   >
                     <Card className="glass-morphism-dark border-white/20">
                       <CardContent className="p-6">
-                        <form onSubmit={handleMainInputSubmit} className="flex items-center space-x-4">
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            if (input.trim()) {
+                              handleModeSelect("chat")
+                            }
+                          }}
+                          className="flex items-center space-x-4"
+                        >
                           <div className="flex-1 relative">
                             <Input
-                              ref={mainInputRef}
                               value={input}
                               onChange={(e) => setInput(e.target.value)}
                               placeholder="Ask anything"

@@ -69,6 +69,22 @@ export default function ChatPage() {
     }
   }, [messages])
 
+  // Check for pending message from dashboard
+  useEffect(() => {
+    const pendingMessage = sessionStorage.getItem("pendingMessage")
+    if (pendingMessage) {
+      setInput(pendingMessage)
+      sessionStorage.removeItem("pendingMessage")
+
+      // Auto-send the message after a short delay
+      setTimeout(() => {
+        if (pendingMessage.trim()) {
+          handleSubmitWithMessage(pendingMessage)
+        }
+      }, 500)
+    }
+  }, [])
+
   // Initialize default chat on first load
   useEffect(() => {
     if (!currentChatId) {
@@ -187,9 +203,8 @@ export default function ChatPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
+  const handleSubmitWithMessage = async (messageText: string) => {
+    if (!messageText.trim() || isLoading) return
 
     if (!canSendMessage) {
       toast({
@@ -204,7 +219,7 @@ export default function ChatPage() {
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
-      content: input,
+      content: messageText,
       timestamp: new Date(),
     }
 
@@ -274,6 +289,11 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    await handleSubmitWithMessage(input)
   }
 
   // Keyboard shortcuts
