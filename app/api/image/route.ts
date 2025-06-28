@@ -85,7 +85,7 @@ export async function POST(req: Request) {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.OPENROUTER_IMAGE_API_KEY}`,
-          "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+          "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "deepseek/deepseek-chat-v3-0324:free",
           "X-Title": "Lumios Gen",
           "Content-Type": "application/json",
         },
