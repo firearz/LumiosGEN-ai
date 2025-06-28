@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://lumios-gen-ai.vercel.app",
         "X-Title": "Lumios Gen - Daily Chat",
         "Content-Type": "application/json",
       },
