@@ -1,19 +1,19 @@
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json()
-
-    // API key is securely stored on server-side only
-    const apiKey = process.env.OPENROUTER_CHAT_API_KEY
+    const { messages } = await req.json();
+    const apiKey = process.env.OPENROUTER_CHAT_API_KEY;
+    const referer = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
     if (!apiKey) {
-      throw new Error("Chat API key not configured")
+      console.error("❌ Missing OPENROUTER_CHAT_API_KEY");
+      return new Response(JSON.stringify({ error: "API key not found." }), { status: 500 });
     }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://lumios-gen-ai.vercel.app",
+        "HTTP-Referer": referer,
         "X-Title": "Lumios Gen - Daily Chat",
         "Content-Type": "application/json",
       },
@@ -23,26 +23,27 @@ export async function POST(req: Request) {
           {
             role: "system",
             content:
-              "You are a helpful, friendly AI assistant for daily conversations. Keep responses conversational, helpful, and engaging. You're designed for casual chats, quick questions, and everyday assistance. Be concise but warm in your responses. Use emojis occasionally to make conversations more lively.",
+              "You are a helpful, friendly AI assistant for daily conversations.",
           },
           ...messages,
         ],
-        temperature: 0.7,
-        max_tokens: 1000,
       }),
-    })
+    });
+
+    const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.status}`)
+      console.error("❌ OpenRouter API Error:", data);
+      return new Response(JSON.stringify({ error: data.error || "Unknown error" }), {
+        status: response.status,
+      });
     }
 
-    const data = await response.json()
-
-    return Response.json({
-      content: data.choices[0].message.content,
-    })
-  } catch (error) {
-    console.error("Chat API error:", error)
-    return Response.json({ error: "Failed to process chat request" }, { status: 500 })
+    return new Response(JSON.stringify({ reply: data.choices[0].message.content }), {
+      status: 200,
+    });
+  } catch (err) {
+    console.error("❌ Unexpected Server Error:", err);
+    return new Response(JSON.stringify({ error: "Unexpected server error." }), { status: 500 });
   }
 }
