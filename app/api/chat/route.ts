@@ -2,7 +2,7 @@ export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
     const apiKey = process.env.OPENROUTER_CHAT_API_KEY;
-    const referer = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+    const referer = process.env.NEXT_PUBLIC_SITE_URL || "https://lumios-gen-ai.vercel.app/";
 
     if (!apiKey) {
       console.error("❌ Missing OPENROUTER_CHAT_API_KEY");
